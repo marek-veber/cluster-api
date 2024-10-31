@@ -43,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	"sigs.k8s.io/cluster-api/util/predicates"
 )
 
@@ -54,10 +55,10 @@ type Options struct {
 	// An example on how to create an ideal secret caching client can be found in the core Cluster API controller main.go file.
 	SecretClient client.Reader
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
+	// WatchFilter is used to filter events prior to reconciliation.
 	// If a filter excludes a cluster from reconciliation, the accessors for this cluster
 	// will never be created.
-	WatchFilterValue string
+	WatchFilter watchfilter.WatchFilter
 
 	// Cache are the cache options for the caches that are created per cluster.
 	Cache CacheOptions
@@ -265,7 +266,7 @@ func SetupWithManager(ctx context.Context, mgr manager.Manager, options Options,
 		Named("clustercache").
 		For(&clusterv1.Cluster{}).
 		WithOptions(controllerOptions).
-		WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), log, options.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceHasFilter(mgr.GetScheme(), log, options.WatchFilter)).
 		Complete(cc)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed setting up ClusterCache with a controller manager")

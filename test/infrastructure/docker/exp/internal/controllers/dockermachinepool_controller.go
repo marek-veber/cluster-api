@@ -39,6 +39,7 @@ import (
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	utilexp "sigs.k8s.io/cluster-api/exp/util"
 	"sigs.k8s.io/cluster-api/internal/util/ssa"
@@ -64,8 +65,8 @@ type DockerMachinePoolReconciler struct {
 	Client           client.Client
 	ContainerRuntime container.Runtime
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 
 	ssaCache        ssa.Cache
 	recorder        record.EventRecorder
@@ -168,7 +169,7 @@ func (r *DockerMachinePoolReconciler) SetupWithManager(ctx context.Context, mgr 
 	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&infraexpv1.DockerMachinePool{}).
 		WithOptions(options).
-		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceNotPausedAndHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter)).
 		Watches(
 			&expv1.MachinePool{},
 			handler.EnqueueRequestsFromMapFunc(utilexp.MachinePoolToInfrastructureMapFunc(ctx,

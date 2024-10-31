@@ -20,11 +20,13 @@ import (
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/labels"
 )
@@ -153,6 +155,10 @@ func Any(scheme *runtime.Scheme, logger logr.Logger, predicates ...predicate.Fun
 	}
 }
 
+func ResourceHasFilter(scheme *runtime.Scheme, logger logr.Logger, filter watchfilter.WatchFilter) predicate.Funcs {
+	return All(scheme, logger, ResourceHasFilterLabel(scheme, logger, filter.Value), ResourceHasFilterExcludeNamespaces(scheme, logger, filter.ExcludedNamespaces))
+}
+
 // ResourceHasFilterLabel returns a predicate that returns true only if the provided resource contains
 // a label with the WatchLabel key and the configured label value exactly.
 func ResourceHasFilterLabel(scheme *runtime.Scheme, logger logr.Logger, labelValue string) predicate.Funcs {
@@ -168,6 +174,25 @@ func ResourceHasFilterLabel(scheme *runtime.Scheme, logger logr.Logger, labelVal
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
 			return processIfLabelMatch(scheme, logger.WithValues("predicate", "ResourceHasFilterLabel", "eventType", "generic"), e.Object, labelValue)
+		},
+	}
+}
+
+// ResourceHasFilterExcludeNamespaces returns a predicate that returns true only if the provided resource contains
+// a matching namespace.
+func ResourceHasFilterExcludeNamespaces(scheme *runtime.Scheme, logger logr.Logger, excludedNamespaces []string) predicate.Funcs {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return processIfNamespaceExcluded(scheme, logger.WithValues("predicate", "ResourceHasFilterExcludeNamespaces", "eventType", "update"), e.ObjectNew, excludedNamespaces)
+		},
+		CreateFunc: func(e event.CreateEvent) bool {
+			return processIfNamespaceExcluded(scheme, logger.WithValues("predicate", "ResourceHasFilterExcludeNamespaces", "eventType", "create"), e.Object, excludedNamespaces)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return processIfNamespaceExcluded(scheme, logger.WithValues("predicate", "ResourceHasFilterExcludeNamespaces", "eventType", "delete"), e.Object, excludedNamespaces)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return processIfNamespaceExcluded(scheme, logger.WithValues("predicate", "ResourceHasFilterExcludeNamespaces", "eventType", "generic"), e.Object, excludedNamespaces)
 		},
 	}
 }
@@ -205,8 +230,8 @@ func ResourceNotPaused(scheme *runtime.Scheme, logger logr.Logger) predicate.Fun
 
 // ResourceNotPausedAndHasFilterLabel returns a predicate that returns true only if the
 // ResourceNotPaused and ResourceHasFilterLabel predicates return true.
-func ResourceNotPausedAndHasFilterLabel(scheme *runtime.Scheme, logger logr.Logger, labelValue string) predicate.Funcs {
-	return All(scheme, logger, ResourceNotPaused(scheme, logger), ResourceHasFilterLabel(scheme, logger, labelValue))
+func ResourceNotPausedAndHasFilter(scheme *runtime.Scheme, logger logr.Logger, filter watchfilter.WatchFilter) predicate.Funcs {
+	return All(scheme, logger, ResourceNotPaused(scheme, logger), ResourceHasFilter(scheme, logger, filter))
 }
 
 func processIfNotPaused(scheme *runtime.Scheme, logger logr.Logger, obj client.Object) bool {
@@ -236,6 +261,23 @@ func processIfLabelMatch(scheme *runtime.Scheme, logger logr.Logger, obj client.
 	}
 	logger.V(4).Info("Resource does not match label, will not attempt to map resource")
 	return false
+}
+
+func processIfNamespaceExcluded(scheme *runtime.Scheme, logger logr.Logger, obj client.Object, excludedNamespaces []string) bool {
+	// Return early if no namespaceRegExp was set.
+	if len(excludedNamespaces) == 0 {
+		return true
+	}
+
+	if gvk, err := apiutil.GVKForObject(obj, scheme); err == nil {
+		logger = logger.WithValues(gvk.Kind, klog.KObj(obj))
+	}
+	if slices.Contains(excludedNamespaces, obj.GetNamespace()) {
+		logger.V(6).Info("Resource is in one of the excluded namespaces, will not attempt to map resource")
+		return false
+	}
+	logger.V(4).Info("Resource is not included in excluded namespaces, will attempt to map resource")
+	return true
 }
 
 // ResourceIsNotExternallyManaged returns a predicate that returns true only if the resource does not contain

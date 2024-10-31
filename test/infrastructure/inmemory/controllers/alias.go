@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	inmemorycontrollers "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/controllers"
 	inmemoryruntime "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/pkg/runtime"
 	inmemoryserver "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/pkg/server"
@@ -38,17 +39,17 @@ type InMemoryClusterReconciler struct {
 	InMemoryManager inmemoryruntime.Manager
 	APIServerMux    *inmemoryserver.WorkloadClustersMux // TODO: find a way to use an interface here
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 }
 
 // SetupWithManager sets up the reconciler with the Manager.
 func (r *InMemoryClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
 	return (&inmemorycontrollers.InMemoryClusterReconciler{
-		Client:           r.Client,
-		InMemoryManager:  r.InMemoryManager,
-		APIServerMux:     r.APIServerMux,
-		WatchFilterValue: r.WatchFilterValue,
+		Client:          r.Client,
+		InMemoryManager: r.InMemoryManager,
+		APIServerMux:    r.APIServerMux,
+		WatchFilter:     r.WatchFilter,
 	}).SetupWithManager(ctx, mgr, options)
 }
 
@@ -58,16 +59,16 @@ type InMemoryMachineReconciler struct {
 	InMemoryManager inmemoryruntime.Manager
 	APIServerMux    *inmemoryserver.WorkloadClustersMux // TODO: find a way to use an interface here
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 }
 
 // SetupWithManager sets up the reconciler with the Manager.
 func (r *InMemoryMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
 	return (&inmemorycontrollers.InMemoryMachineReconciler{
-		Client:           r.Client,
-		InMemoryManager:  r.InMemoryManager,
-		APIServerMux:     r.APIServerMux,
-		WatchFilterValue: r.WatchFilterValue,
+		Client:          r.Client,
+		InMemoryManager: r.InMemoryManager,
+		APIServerMux:    r.APIServerMux,
+		WatchFilter:     r.WatchFilter,
 	}).SetupWithManager(ctx, mgr, options)
 }

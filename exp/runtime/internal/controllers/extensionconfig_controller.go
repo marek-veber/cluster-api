@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	runtimev1 "sigs.k8s.io/cluster-api/exp/runtime/api/v1alpha1"
 	runtimeclient "sigs.k8s.io/cluster-api/internal/runtime/client"
 	"sigs.k8s.io/cluster-api/util/annotations"
@@ -58,8 +59,8 @@ type Reconciler struct {
 	Client        client.Client
 	APIReader     client.Reader
 	RuntimeClient runtimeclient.Client
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 }
 
 func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options, partialSecretCache cache.Cache) error {
@@ -83,7 +84,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, opt
 			),
 		)).
 		WithOptions(options).
-		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceNotPausedAndHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter)).
 		Complete(r)
 	if err != nil {
 		return errors.Wrap(err, "failed setting up with a controller manager")

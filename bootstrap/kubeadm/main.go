@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	goruntime "runtime"
+	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -49,6 +50,7 @@ import (
 	"sigs.k8s.io/cluster-api/bootstrap/kubeadm/internal/webhooks"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
 	"sigs.k8s.io/cluster-api/controllers/remote"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api/feature"
 	bootstrapv1alpha3 "sigs.k8s.io/cluster-api/internal/apis/bootstrap/kubeadm/v1alpha3"
@@ -64,26 +66,27 @@ var (
 	controllerName = "cluster-api-kubeadm-bootstrap-manager"
 
 	// flags.
-	enableLeaderElection        bool
-	leaderElectionLeaseDuration time.Duration
-	leaderElectionRenewDeadline time.Duration
-	leaderElectionRetryPeriod   time.Duration
-	watchFilterValue            string
-	watchNamespace              string
-	profilerAddress             string
-	enableContentionProfiling   bool
-	syncPeriod                  time.Duration
-	restConfigQPS               float32
-	restConfigBurst             int
-	clusterCacheClientQPS       float32
-	clusterCacheClientBurst     int
-	webhookPort                 int
-	webhookCertDir              string
-	webhookCertName             string
-	webhookKeyName              string
-	healthAddr                  string
-	managerOptions              = flags.ManagerOptions{}
-	logOptions                  = logs.NewOptions()
+	enableLeaderElection          bool
+	leaderElectionLeaseDuration   time.Duration
+	leaderElectionRenewDeadline   time.Duration
+	leaderElectionRetryPeriod     time.Duration
+	watchFilterValue              string
+	watchFilterExcludedNamespaces string
+	watchNamespace                string
+	profilerAddress               string
+	enableContentionProfiling     bool
+	syncPeriod                    time.Duration
+	restConfigQPS                 float32
+	restConfigBurst               int
+	clusterCacheClientQPS         float32
+	clusterCacheClientBurst       int
+	webhookPort                   int
+	webhookCertDir                string
+	webhookCertName               string
+	webhookKeyName                string
+	healthAddr                    string
+	managerOptions                = flags.ManagerOptions{}
+	logOptions                    = logs.NewOptions()
 	// CABPK specific flags.
 	clusterConcurrency       int
 	clusterCacheConcurrency  int
@@ -121,6 +124,9 @@ func InitFlags(fs *pflag.FlagSet) {
 
 	fs.StringVar(&watchFilterValue, "watch-filter", "",
 		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", clusterv1.WatchLabel))
+
+	fs.StringVar(&watchFilterExcludedNamespaces, "excluded-namespaces", "",
+		fmt.Sprintf("Comma separated list of names. Exclude the namespaces controller watches to reconcile cluster-api objects."))
 
 	fs.StringVar(&profilerAddress, "profiler-address", "",
 		"Bind address to expose the pprof profiler (e.g. localhost:6060)")
@@ -313,6 +319,13 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 		os.Exit(1)
 	}
 
+	watchFilter := watchfilter.WatchFilter{
+		Value: watchFilterValue,
+	}
+	if watchFilterExcludedNamespaces != "" {
+		watchFilter.ExcludedNamespaces = strings.Split(watchFilterExcludedNamespaces, ",")
+	}
+
 	clusterCache, err := clustercache.SetupWithManager(ctx, mgr, clustercache.Options{
 		SecretClient: secretCachingClient,
 		Cache:        clustercache.CacheOptions{},
@@ -328,7 +341,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 				},
 			},
 		},
-		WatchFilterValue: watchFilterValue,
+		WatchFilter: watchFilter,
 	}, concurrency(clusterCacheConcurrency))
 	if err != nil {
 		setupLog.Error(err, "Unable to create ClusterCache")
@@ -339,7 +352,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 		Client:              mgr.GetClient(),
 		SecretCachingClient: secretCachingClient,
 		ClusterCache:        clusterCache,
-		WatchFilterValue:    watchFilterValue,
+		WatchFilter:         watchFilter,
 		TokenTTL:            tokenTTL,
 	}).SetupWithManager(ctx, mgr, concurrency(kubeadmConfigConcurrency)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KubeadmConfig")

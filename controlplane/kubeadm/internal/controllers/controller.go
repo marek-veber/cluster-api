@@ -41,6 +41,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controlplane/kubeadm/internal"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
@@ -83,8 +84,8 @@ type KubeadmControlPlaneReconciler struct {
 	EtcdDialTimeout time.Duration
 	EtcdCallTimeout time.Duration
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 
 	RemoteConditionsGracePeriod time.Duration
 
@@ -114,13 +115,13 @@ func (r *KubeadmControlPlaneReconciler) SetupWithManager(ctx context.Context, mg
 		For(&controlplanev1.KubeadmControlPlane{}).
 		Owns(&clusterv1.Machine{}).
 		WithOptions(options).
-		WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter)).
 		Watches(
 			&clusterv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(r.ClusterToKubeadmControlPlane),
 			builder.WithPredicates(
 				predicates.All(mgr.GetScheme(), predicateLog,
-					predicates.ResourceHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue),
+					predicates.ResourceHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter),
 					predicates.ClusterPausedTransitionsOrInfrastructureReady(mgr.GetScheme(), predicateLog),
 				),
 			),

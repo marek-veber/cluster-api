@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	"sigs.k8s.io/cluster-api/test/infrastructure/container"
 	dockermachinepoolcontrollers "sigs.k8s.io/cluster-api/test/infrastructure/docker/exp/internal/controllers"
 )
@@ -33,8 +34,8 @@ type DockerMachinePoolReconciler struct {
 	Client           client.Client
 	ContainerRuntime container.Runtime
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 }
 
 // SetupWithManager will add watches for this controller.
@@ -42,6 +43,6 @@ func (r *DockerMachinePoolReconciler) SetupWithManager(ctx context.Context, mgr 
 	return (&dockermachinepoolcontrollers.DockerMachinePoolReconciler{
 		Client:           r.Client,
 		ContainerRuntime: r.ContainerRuntime,
-		WatchFilterValue: r.WatchFilterValue,
+		WatchFilter:      r.WatchFilter,
 	}).SetupWithManager(ctx, mgr, options)
 }

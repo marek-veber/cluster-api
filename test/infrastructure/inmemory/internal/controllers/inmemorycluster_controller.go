@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	infrav1 "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/api/v1alpha1"
 	inmemoryruntime "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/pkg/runtime"
 	inmemoryserver "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/pkg/server"
@@ -49,8 +50,8 @@ type InMemoryClusterReconciler struct {
 	InMemoryManager inmemoryruntime.Manager
 	APIServerMux    *inmemoryserver.WorkloadClustersMux
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is Fused to filter events prior to reconciliation.
+	WatchFilter    watchfilter.WatchFilter
 
 	hotRestartDone bool
 	hotRestartLock sync.RWMutex
@@ -220,7 +221,7 @@ func (r *InMemoryClusterReconciler) SetupWithManager(ctx context.Context, mgr ct
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.InMemoryCluster{}).
 		WithOptions(options).
-		WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter)).
 		Watches(
 			&clusterv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(util.ClusterToInfrastructureMapFunc(ctx, infrav1.GroupVersion.WithKind("InMemoryCluster"), mgr.GetClient(), &infrav1.InMemoryCluster{})),

@@ -42,6 +42,7 @@ import (
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	addonsv1 "sigs.k8s.io/cluster-api/exp/addons/api/v1beta1"
 	resourcepredicates "sigs.k8s.io/cluster-api/exp/addons/internal/controllers/predicates"
 	"sigs.k8s.io/cluster-api/util"
@@ -65,8 +66,8 @@ type ClusterResourceSetReconciler struct {
 	Client       client.Client
 	ClusterCache clustercache.ClusterCache
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 }
 
 func (r *ClusterResourceSetReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options, partialSecretCache cache.Cache) error {
@@ -103,7 +104,7 @@ func (r *ClusterResourceSetReconciler) SetupWithManager(ctx context.Context, mgr
 			resourcepredicates.TypedResourceCreateOrUpdate[*metav1.PartialObjectMetadata](predicateLog),
 		)).
 		WithOptions(options).
-		WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter)).
 		Complete(r)
 	if err != nil {
 		return errors.Wrap(err, "failed setting up with a controller manager")

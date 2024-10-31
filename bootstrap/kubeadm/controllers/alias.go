@@ -26,6 +26,7 @@ import (
 
 	kubeadmbootstrapcontrollers "sigs.k8s.io/cluster-api/bootstrap/kubeadm/internal/controllers"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 )
 
 // Following types provides access to reconcilers implemented in internal/controllers, thus
@@ -43,8 +44,8 @@ type KubeadmConfigReconciler struct {
 
 	ClusterCache clustercache.ClusterCache
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 
 	// TokenTTL is the amount of time a bootstrap token (and therefore a KubeadmConfig) will be valid.
 	TokenTTL time.Duration
@@ -56,7 +57,7 @@ func (r *KubeadmConfigReconciler) SetupWithManager(ctx context.Context, mgr ctrl
 		Client:              r.Client,
 		SecretCachingClient: r.SecretCachingClient,
 		ClusterCache:        r.ClusterCache,
-		WatchFilterValue:    r.WatchFilterValue,
+		WatchFilter:         r.WatchFilter,
 		TokenTTL:            r.TokenTTL,
 	}).SetupWithManager(ctx, mgr, options)
 }

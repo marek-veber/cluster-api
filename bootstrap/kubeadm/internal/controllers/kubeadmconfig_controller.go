@@ -51,6 +51,7 @@ import (
 	kubeadmtypes "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types"
 	bsutil "sigs.k8s.io/cluster-api/bootstrap/util"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api/feature"
 	"sigs.k8s.io/cluster-api/internal/util/taints"
@@ -86,8 +87,8 @@ type KubeadmConfigReconciler struct {
 	ClusterCache        clustercache.ClusterCache
 	KubeadmInitLock     InitLocker
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 
 	// TokenTTL is the amount of time a bootstrap token (and therefore a KubeadmConfig) will be valid.
 	TokenTTL time.Duration
@@ -121,7 +122,7 @@ func (r *KubeadmConfigReconciler) SetupWithManager(ctx context.Context, mgr ctrl
 		Watches(
 			&clusterv1.Machine{},
 			handler.EnqueueRequestsFromMapFunc(r.MachineToBootstrapMapFunc),
-		).WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue))
+		).WithEventFilter(predicates.ResourceHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter))
 
 	if feature.Gates.Enabled(feature.MachinePool) {
 		b = b.Watches(
@@ -136,7 +137,7 @@ func (r *KubeadmConfigReconciler) SetupWithManager(ctx context.Context, mgr ctrl
 		builder.WithPredicates(
 			predicates.All(mgr.GetScheme(), predicateLog,
 				predicates.ClusterPausedTransitionsOrInfrastructureReady(mgr.GetScheme(), predicateLog),
-				predicates.ResourceHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue),
+				predicates.ResourceHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter),
 			),
 		),
 	).WatchesRawSource(r.ClusterCache.GetClusterSource("kubeadmconfig", r.ClusterToKubeadmConfigs))

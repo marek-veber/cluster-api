@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	clusterresourcesets "sigs.k8s.io/cluster-api/exp/addons/internal/controllers"
 )
 
@@ -33,15 +34,15 @@ type ClusterResourceSetReconciler struct {
 	Client       client.Client
 	ClusterCache clustercache.ClusterCache
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 }
 
 func (r *ClusterResourceSetReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options, partialSecretCache cache.Cache) error {
 	return (&clusterresourcesets.ClusterResourceSetReconciler{
-		Client:           r.Client,
-		ClusterCache:     r.ClusterCache,
-		WatchFilterValue: r.WatchFilterValue,
+		Client:       r.Client,
+		ClusterCache: r.ClusterCache,
+		WatchFilter:  r.WatchFilter,
 	}).SetupWithManager(ctx, mgr, options, partialSecretCache)
 }
 
@@ -49,13 +50,13 @@ func (r *ClusterResourceSetReconciler) SetupWithManager(ctx context.Context, mgr
 type ClusterResourceSetBindingReconciler struct {
 	Client client.Client
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 }
 
 func (r *ClusterResourceSetBindingReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
 	return (&clusterresourcesets.ClusterResourceSetBindingReconciler{
-		Client:           r.Client,
-		WatchFilterValue: r.WatchFilterValue,
+		Client:      r.Client,
+		WatchFilter: r.WatchFilter,
 	}).SetupWithManager(ctx, mgr, options)
 }

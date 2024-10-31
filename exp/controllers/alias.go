@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	machinepool "sigs.k8s.io/cluster-api/exp/internal/controllers"
 )
 
@@ -33,15 +34,15 @@ type MachinePoolReconciler struct {
 	APIReader    client.Reader
 	ClusterCache clustercache.ClusterCache
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 }
 
 func (r *MachinePoolReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
 	return (&machinepool.MachinePoolReconciler{
-		Client:           r.Client,
-		APIReader:        r.APIReader,
-		ClusterCache:     r.ClusterCache,
-		WatchFilterValue: r.WatchFilterValue,
+		Client:       r.Client,
+		APIReader:    r.APIReader,
+		ClusterCache: r.ClusterCache,
+		WatchFilter:  r.WatchFilter,
 	}).SetupWithManager(ctx, mgr, options)
 }

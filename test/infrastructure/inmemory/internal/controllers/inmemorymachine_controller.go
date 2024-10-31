@@ -43,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	infrav1 "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/api/v1alpha1"
 	cloudv1 "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/internal/cloud/api/v1alpha1"
 	inmemoryruntime "sigs.k8s.io/cluster-api/test/infrastructure/inmemory/pkg/runtime"
@@ -64,8 +65,8 @@ type InMemoryMachineReconciler struct {
 	InMemoryManager inmemoryruntime.Manager
 	APIServerMux    *inmemoryserver.WorkloadClustersMux
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=inmemorymachines,verbs=get;list;watch;create;update;patch;delete
@@ -1164,7 +1165,7 @@ func (r *InMemoryMachineReconciler) SetupWithManager(ctx context.Context, mgr ct
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.InMemoryMachine{}).
 		WithOptions(options).
-		WithEventFilter(predicates.ResourceHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter)).
 		Watches(
 			&clusterv1.Machine{},
 			handler.EnqueueRequestsFromMapFunc(util.MachineToInfrastructureMapFunc(infrav1.GroupVersion.WithKind("InMemoryMachine"))),

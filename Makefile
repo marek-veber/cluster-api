@@ -1016,7 +1016,7 @@ serve-book: ## Build and serve the book (with live-reload)
 ##@ release:
 
 ## latest git tag for the commit, e.g., v0.3.10
-RELEASE_TAG ?= $(shell git describe --abbrev=0 2>/dev/null)
+RELEASE_TAG ?= $(shell git describe --abbrev=0 --always 2>/dev/null)
 ## set by Prow, ref name of the base branch, e.g., main
 RELEASE_ALIAS_TAG := $(PULL_BASE_REF)
 RELEASE_DIR := out
@@ -1531,8 +1531,8 @@ checkout-triage-party:
 		git apply "$(ROOT_DIR)/$(TRIAGE_PARTY_DIR)/triage-improvements.patch"; \
 	fi
 	@cd "$(ROOT_DIR)/$(TRIAGE_PARTY_TMP_DIR)"; \
-	if [ "$$(git describe --tag 2> /dev/null)" != "$(TRIAGE_PARTY_VERSION)" ]; then \
-		echo "ERROR: checked out version $$(git describe --tag 2> /dev/null) does not match expected version $(TRIAGE_PARTY_VERSION)"; \
+	if [ "$$(git describe --tag --always 2> /dev/null)" != "$(TRIAGE_PARTY_VERSION)" ]; then \
+		echo "ERROR: checked out version $$(git describe --tag --always 2> /dev/null) does not match expected version $(TRIAGE_PARTY_VERSION)"; \
 		exit 1; \
 	fi
 

@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	externalfake "sigs.k8s.io/cluster-api/controllers/external/fake"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	runtimecatalog "sigs.k8s.io/cluster-api/exp/runtime/catalog"
 	runtimehooksv1 "sigs.k8s.io/cluster-api/exp/runtime/hooks/api/v1alpha1"
@@ -76,8 +77,8 @@ type Reconciler struct {
 
 	RuntimeClient runtimeclient.Client
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 
 	externalTracker external.ObjectTracker
 	recorder        record.EventRecorder
@@ -120,7 +121,7 @@ func (r *Reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, opt
 			builder.WithPredicates(predicates.ResourceIsTopologyOwned(mgr.GetScheme(), predicateLog)),
 		).
 		WithOptions(options).
-		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), predicateLog, r.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceNotPausedAndHasFilter(mgr.GetScheme(), predicateLog, r.WatchFilter)).
 		Build(r)
 
 	if err != nil {

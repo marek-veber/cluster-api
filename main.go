@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	goruntime "runtime"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -53,6 +54,7 @@ import (
 	"sigs.k8s.io/cluster-api/controllers"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
 	"sigs.k8s.io/cluster-api/controllers/remote"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	addonsv1 "sigs.k8s.io/cluster-api/exp/addons/api/v1beta1"
 	addonscontrollers "sigs.k8s.io/cluster-api/exp/addons/controllers"
 	addonswebhooks "sigs.k8s.io/cluster-api/exp/addons/webhooks"
@@ -88,26 +90,27 @@ var (
 	controllerName = "cluster-api-controller-manager"
 
 	// flags.
-	enableLeaderElection        bool
-	leaderElectionLeaseDuration time.Duration
-	leaderElectionRenewDeadline time.Duration
-	leaderElectionRetryPeriod   time.Duration
-	watchFilterValue            string
-	watchNamespace              string
-	profilerAddress             string
-	enableContentionProfiling   bool
-	syncPeriod                  time.Duration
-	restConfigQPS               float32
-	restConfigBurst             int
-	clusterCacheClientQPS       float32
-	clusterCacheClientBurst     int
-	webhookPort                 int
-	webhookCertDir              string
-	webhookCertName             string
-	webhookKeyName              string
-	healthAddr                  string
-	managerOptions              = flags.ManagerOptions{}
-	logOptions                  = logs.NewOptions()
+	enableLeaderElection          bool
+	leaderElectionLeaseDuration   time.Duration
+	leaderElectionRenewDeadline   time.Duration
+	leaderElectionRetryPeriod     time.Duration
+	watchFilterValue              string
+	watchFilterExcludedNamespaces string
+	watchNamespace                string
+	profilerAddress               string
+	enableContentionProfiling     bool
+	syncPeriod                    time.Duration
+	restConfigQPS                 float32
+	restConfigBurst               int
+	clusterCacheClientQPS         float32
+	clusterCacheClientBurst       int
+	webhookPort                   int
+	webhookCertDir                string
+	webhookCertName               string
+	webhookKeyName                string
+	healthAddr                    string
+	managerOptions                = flags.ManagerOptions{}
+	logOptions                    = logs.NewOptions()
 	// core Cluster API specific flags.
 	remoteConnectionGracePeriod     time.Duration
 	remoteConditionsGracePeriod     time.Duration
@@ -171,6 +174,9 @@ func InitFlags(fs *pflag.FlagSet) {
 
 	fs.StringVar(&watchFilterValue, "watch-filter", "",
 		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", clusterv1.WatchLabel))
+
+	fs.StringVar(&watchFilterExcludedNamespaces, "excluded-namespaces", "",
+		fmt.Sprintf("Comma separated list of names. Exclude the namespaces controller watches to reconcile cluster-api objects."))
 
 	fs.StringVar(&profilerAddress, "profiler-address", "",
 		"Bind address to expose the pprof profiler (e.g. localhost:6060)")
@@ -425,6 +431,12 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 		setupLog.Error(err, "Unable to create secret caching client")
 		os.Exit(1)
 	}
+	watchFilter := watchfilter.WatchFilter{
+		Value: watchFilterValue,
+	}
+	if watchFilterExcludedNamespaces != "" {
+		watchFilter.ExcludedNamespaces = strings.Split(watchFilterExcludedNamespaces, ",")
+	}
 
 	clusterCache, err := clustercache.SetupWithManager(ctx, mgr, clustercache.Options{
 		SecretClient: secretCachingClient,
@@ -449,7 +461,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 				},
 			},
 		},
-		WatchFilterValue: watchFilterValue,
+		WatchFilter: watchFilter,
 	}, concurrency(clusterCacheConcurrency))
 	if err != nil {
 		setupLog.Error(err, "Unable to create ClusterCache")
@@ -498,38 +510,38 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 
 	if feature.Gates.Enabled(feature.ClusterTopology) {
 		if err := (&controllers.ClusterClassReconciler{
-			Client:           mgr.GetClient(),
-			RuntimeClient:    runtimeClient,
-			WatchFilterValue: watchFilterValue,
+			Client:        mgr.GetClient(),
+			RuntimeClient: runtimeClient,
+			WatchFilter:   watchFilter,
 		}).SetupWithManager(ctx, mgr, concurrency(clusterClassConcurrency)); err != nil {
 			setupLog.Error(err, "Unable to create controller", "controller", "ClusterClass")
 			os.Exit(1)
 		}
 
 		if err := (&controllers.ClusterTopologyReconciler{
-			Client:           mgr.GetClient(),
-			APIReader:        mgr.GetAPIReader(),
-			RuntimeClient:    runtimeClient,
-			ClusterCache:     clusterCache,
-			WatchFilterValue: watchFilterValue,
+			Client:        mgr.GetClient(),
+			APIReader:     mgr.GetAPIReader(),
+			RuntimeClient: runtimeClient,
+			ClusterCache:  clusterCache,
+			WatchFilter:   watchFilter,
 		}).SetupWithManager(ctx, mgr, concurrency(clusterTopologyConcurrency)); err != nil {
 			setupLog.Error(err, "Unable to create controller", "controller", "ClusterTopology")
 			os.Exit(1)
 		}
 
 		if err := (&controllers.MachineDeploymentTopologyReconciler{
-			Client:           mgr.GetClient(),
-			APIReader:        mgr.GetAPIReader(),
-			WatchFilterValue: watchFilterValue,
+			Client:      mgr.GetClient(),
+			APIReader:   mgr.GetAPIReader(),
+			WatchFilter: watchFilter,
 		}).SetupWithManager(ctx, mgr, controller.Options{}); err != nil {
 			setupLog.Error(err, "Unable to create controller", "controller", "MachineDeploymentTopology")
 			os.Exit(1)
 		}
 
 		if err := (&controllers.MachineSetTopologyReconciler{
-			Client:           mgr.GetClient(),
-			APIReader:        mgr.GetAPIReader(),
-			WatchFilterValue: watchFilterValue,
+			Client:      mgr.GetClient(),
+			APIReader:   mgr.GetAPIReader(),
+			WatchFilter: watchFilter,
 		}).SetupWithManager(ctx, mgr, controller.Options{}); err != nil {
 			setupLog.Error(err, "Unable to create controller", "controller", "MachineSetTopology")
 			os.Exit(1)
@@ -538,10 +550,10 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 
 	if feature.Gates.Enabled(feature.RuntimeSDK) {
 		if err = (&runtimecontrollers.ExtensionConfigReconciler{
-			Client:           mgr.GetClient(),
-			APIReader:        mgr.GetAPIReader(),
-			RuntimeClient:    runtimeClient,
-			WatchFilterValue: watchFilterValue,
+			Client:        mgr.GetClient(),
+			APIReader:     mgr.GetAPIReader(),
+			RuntimeClient: runtimeClient,
+			WatchFilter:   watchFilter,
 		}).SetupWithManager(ctx, mgr, concurrency(extensionConfigConcurrency), partialSecretCache); err != nil {
 			setupLog.Error(err, "Unable to create controller", "controller", "ExtensionConfig")
 			os.Exit(1)
@@ -552,7 +564,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 		Client:                      mgr.GetClient(),
 		APIReader:                   mgr.GetAPIReader(),
 		ClusterCache:                clusterCache,
-		WatchFilterValue:            watchFilterValue,
+		WatchFilter:                 watchFilter,
 		RemoteConnectionGracePeriod: remoteConnectionGracePeriod,
 	}).SetupWithManager(ctx, mgr, concurrency(clusterConcurrency)); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "Cluster")
@@ -562,7 +574,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 		Client:                      mgr.GetClient(),
 		APIReader:                   mgr.GetAPIReader(),
 		ClusterCache:                clusterCache,
-		WatchFilterValue:            watchFilterValue,
+		WatchFilter:                 watchFilter,
 		RemoteConditionsGracePeriod: remoteConditionsGracePeriod,
 	}).SetupWithManager(ctx, mgr, concurrency(machineConcurrency)); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "Machine")
@@ -572,16 +584,16 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 		Client:                       mgr.GetClient(),
 		APIReader:                    mgr.GetAPIReader(),
 		ClusterCache:                 clusterCache,
-		WatchFilterValue:             watchFilterValue,
+		WatchFilter:                  watchFilter,
 		DeprecatedInfraMachineNaming: useDeprecatedInfraMachineNaming,
 	}).SetupWithManager(ctx, mgr, concurrency(machineSetConcurrency)); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "MachineSet")
 		os.Exit(1)
 	}
 	if err := (&controllers.MachineDeploymentReconciler{
-		Client:           mgr.GetClient(),
-		APIReader:        mgr.GetAPIReader(),
-		WatchFilterValue: watchFilterValue,
+		Client:      mgr.GetClient(),
+		APIReader:   mgr.GetAPIReader(),
+		WatchFilter: watchFilter,
 	}).SetupWithManager(ctx, mgr, concurrency(machineDeploymentConcurrency)); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "MachineDeployment")
 		os.Exit(1)
@@ -589,10 +601,10 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 
 	if feature.Gates.Enabled(feature.MachinePool) {
 		if err := (&expcontrollers.MachinePoolReconciler{
-			Client:           mgr.GetClient(),
-			APIReader:        mgr.GetAPIReader(),
-			ClusterCache:     clusterCache,
-			WatchFilterValue: watchFilterValue,
+			Client:       mgr.GetClient(),
+			APIReader:    mgr.GetAPIReader(),
+			ClusterCache: clusterCache,
+			WatchFilter:  watchFilter,
 		}).SetupWithManager(ctx, mgr, concurrency(machinePoolConcurrency)); err != nil {
 			setupLog.Error(err, "Unable to create controller", "controller", "MachinePool")
 			os.Exit(1)
@@ -601,16 +613,16 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 
 	if feature.Gates.Enabled(feature.ClusterResourceSet) {
 		if err := (&addonscontrollers.ClusterResourceSetReconciler{
-			Client:           mgr.GetClient(),
-			ClusterCache:     clusterCache,
-			WatchFilterValue: watchFilterValue,
+			Client:       mgr.GetClient(),
+			ClusterCache: clusterCache,
+			WatchFilter:  watchFilter,
 		}).SetupWithManager(ctx, mgr, concurrency(clusterResourceSetConcurrency), partialSecretCache); err != nil {
 			setupLog.Error(err, "Unable to create controller", "controller", "ClusterResourceSet")
 			os.Exit(1)
 		}
 		if err := (&addonscontrollers.ClusterResourceSetBindingReconciler{
-			Client:           mgr.GetClient(),
-			WatchFilterValue: watchFilterValue,
+			Client:      mgr.GetClient(),
+			WatchFilter: watchFilter,
 		}).SetupWithManager(ctx, mgr, concurrency(clusterResourceSetConcurrency)); err != nil {
 			setupLog.Error(err, "Unable to create controller", "controller", "ClusterResourceSetBinding")
 			os.Exit(1)
@@ -618,9 +630,9 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, watchNamespaces map
 	}
 
 	if err := (&controllers.MachineHealthCheckReconciler{
-		Client:           mgr.GetClient(),
-		ClusterCache:     clusterCache,
-		WatchFilterValue: watchFilterValue,
+		Client:       mgr.GetClient(),
+		ClusterCache: clusterCache,
+		WatchFilter:  watchFilter,
 	}).SetupWithManager(ctx, mgr, concurrency(machineHealthCheckConcurrency)); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "MachineHealthCheck")
 		os.Exit(1)

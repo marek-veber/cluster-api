@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
+	watchfilter "sigs.k8s.io/cluster-api/controllers/watchfilter"
 	kubeadmcontrolplanecontrollers "sigs.k8s.io/cluster-api/controlplane/kubeadm/internal/controllers"
 )
 
@@ -37,8 +38,8 @@ type KubeadmControlPlaneReconciler struct {
 	EtcdDialTimeout time.Duration
 	EtcdCallTimeout time.Duration
 
-	// WatchFilterValue is the label value used to filter events prior to reconciliation.
-	WatchFilterValue string
+	// WatchFilter is used to filter events prior to reconciliation.
+	WatchFilter watchfilter.WatchFilter
 
 	RemoteConditionsGracePeriod time.Duration
 
@@ -54,7 +55,7 @@ func (r *KubeadmControlPlaneReconciler) SetupWithManager(ctx context.Context, mg
 		ClusterCache:                 r.ClusterCache,
 		EtcdDialTimeout:              r.EtcdDialTimeout,
 		EtcdCallTimeout:              r.EtcdCallTimeout,
-		WatchFilterValue:             r.WatchFilterValue,
+		WatchFilter:                  r.WatchFilter,
 		RemoteConditionsGracePeriod:  r.RemoteConditionsGracePeriod,
 		DeprecatedInfraMachineNaming: r.DeprecatedInfraMachineNaming,
 	}).SetupWithManager(ctx, mgr, options)
