@@ -29,6 +29,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
@@ -71,6 +72,7 @@ var (
 	leaderElectionRenewDeadline    time.Duration
 	leaderElectionRetryPeriod      time.Duration
 	watchFilterValue               string
+	watchExcludedNamespaces        []string
 	watchNamespace                 string
 	profilerAddress                string
 	enableContentionProfiling      bool
@@ -126,6 +128,9 @@ func InitFlags(fs *pflag.FlagSet) {
 
 	fs.StringVar(&watchFilterValue, "watch-filter", "",
 		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", clusterv1.WatchLabel))
+
+	fs.StringSliceVar(&watchExcludedNamespaces, "excluded-namespace", nil,
+		"Comma separated list of namespaces. Exclude the namespaces controller watches to reconcile cluster-api objects.")
 
 	fs.StringVar(&profilerAddress, "profiler-address", "",
 		"Bind address to expose the pprof profiler (e.g. localhost:6060)")
@@ -225,6 +230,15 @@ func main() {
 		}
 	}
 
+	var fieldSelector fields.Selector
+	if watchExcludedNamespaces != nil {
+		var conditions []fields.Selector
+		for i := range watchExcludedNamespaces {
+			conditions = append(conditions, fields.OneTermNotEqualSelector("metadata.namespace", watchExcludedNamespaces[i]))
+		}
+		fieldSelector = fields.AndSelectors(conditions...)
+	}
+
 	if enableContentionProfiling {
 		goruntime.SetBlockProfileRate(1)
 	}
@@ -244,8 +258,9 @@ func main() {
 		PprofBindAddress:           profilerAddress,
 		Metrics:                    *metricsOptions,
 		Cache: cache.Options{
-			DefaultNamespaces: watchNamespaces,
-			SyncPeriod:        &syncPeriod,
+			DefaultFieldSelector: fieldSelector,
+			DefaultNamespaces:    watchNamespaces,
+			SyncPeriod:           &syncPeriod,
 			ByObject: map[client.Object]cache.ByObject{
 				// Note: Only Secrets with the cluster name label are cached.
 				// The default client of the manager won't use the cache for secrets at all (see Client.Cache.DisableFor).
