@@ -73,27 +73,27 @@ var (
 	controllerName = "cluster-api-kubeadm-control-plane-manager"
 
 	// flags.
-	enableLeaderElection          bool
-	leaderElectionLeaseDuration   time.Duration
-	leaderElectionRenewDeadline   time.Duration
-	leaderElectionRetryPeriod     time.Duration
-	watchFilterValue              string
-	watchExcludedNamespaces       []string
-	watchNamespace                string
-	profilerAddress               string
-	enableContentionProfiling     bool
-	syncPeriod                    time.Duration
-	restConfigQPS                 float32
-	restConfigBurst               int
-	clusterCacheClientQPS         float32
-	clusterCacheClientBurst       int
-	webhookPort                   int
-	webhookCertDir                string
-	webhookCertName               string
-	webhookKeyName                string
-	healthAddr                    string
-	managerOptions                = flags.ManagerOptions{}
-	logOptions                    = logs.NewOptions()
+	enableLeaderElection        bool
+	leaderElectionLeaseDuration time.Duration
+	leaderElectionRenewDeadline time.Duration
+	leaderElectionRetryPeriod   time.Duration
+	watchFilterValue            string
+	watchExcludedNamespaces     []string
+	watchNamespacesList         []string
+	profilerAddress             string
+	enableContentionProfiling   bool
+	syncPeriod                  time.Duration
+	restConfigQPS               float32
+	restConfigBurst             int
+	clusterCacheClientQPS       float32
+	clusterCacheClientBurst     int
+	webhookPort                 int
+	webhookCertDir              string
+	webhookCertName             string
+	webhookKeyName              string
+	healthAddr                  string
+	managerOptions              = flags.ManagerOptions{}
+	logOptions                  = logs.NewOptions()
 	// KCP specific flags.
 	remoteConditionsGracePeriod    time.Duration
 	kubeadmControlPlaneConcurrency int
@@ -129,8 +129,8 @@ func InitFlags(fs *pflag.FlagSet) {
 	fs.DurationVar(&leaderElectionRetryPeriod, "leader-elect-retry-period", 5*time.Second,
 		"Duration the LeaderElector clients should wait between tries of actions (duration string)")
 
-	fs.StringVar(&watchNamespace, "namespace", "",
-		"Namespace that the controller watches to reconcile cluster-api objects. If unspecified, the controller watches for cluster-api objects across all namespaces.")
+	fs.StringSliceVar(&watchNamespacesList, "namespace", nil,
+		"Comma-separated list of namespaces that the controller watches to reconcile cluster-api objects. If unspecified, the controller watches for cluster-api objects across all namespaces.")
 
 	fs.StringVar(&watchFilterValue, "watch-filter", "",
 		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", clusterv1.WatchLabel))
@@ -240,9 +240,10 @@ func main() {
 	}
 
 	var watchNamespaces map[string]cache.Config
-	if watchNamespace != "" {
-		watchNamespaces = map[string]cache.Config{
-			watchNamespace: {},
+	if watchNamespacesList != nil {
+		watchNamespaces = map[string]cache.Config{}
+		for _, watchNamespace := range watchNamespacesList {
+			watchNamespaces[watchNamespace] = cache.Config{}
 		}
 	}
 
